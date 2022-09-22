@@ -20,7 +20,7 @@
 
 using namespace std;
 
-#define PORT "80" // the port client will be connecting to 
+// #define PORT "80" // the port client will be connecting to 
 
 #define MAXDATASIZE 16 // max number of bytes we can get at once 
 
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
 	}
 
 	ofstream output; //create output file
-	output.open("output");
+	output.open("output", ios::out | ios::app | ios::binary);
 	int sockfd, numbytes;  
 	char buf[MAXDATASIZE];
 	struct addrinfo hints, *servinfo, *p;
@@ -203,14 +203,20 @@ int main(int argc, char *argv[])
 		buf[numbytes] = '\0';
 		if (!strlen(buf)) break;
 
-		if (http_response && strstr(buf, "404")) {
-			//only when we find 404 code in the first line will we say filenotfound
-			output.close();
-			output.open("output");
-			output << "FILENOTFOUND";
-			break;
+		if (http_response) {
+			if (strstr(buf, "404")) {
+				//only when we find 404 code in the first line will we say filenotfound
+				output.close();
+				output.open("output");
+				output << "FILENOTFOUND";
+				break;
+			}
+			if (char *body = strstr(buf, "\r\n\r\n")) {
+				http_response = 0;
+				output << body + 4;
+			}
+			continue;
 		}
-		http_response = 0;
 
 		// printf("client: received '%s'\n",buf);
 		// write to the file named "output"
