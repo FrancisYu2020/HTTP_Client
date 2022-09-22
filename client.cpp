@@ -11,15 +11,89 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <string>
 #include <iostream>
-
 #include <arpa/inet.h>
+//#include <bits/stdc++.h>
+#include <fstream>
+// #include "utils.hpp"
 
 using namespace std;
 
 #define PORT "80" // the port client will be connecting to 
 
-#define MAXDATASIZE 100 // max number of bytes we can get at once 
+#define MAXDATASIZE 16 // max number of bytes we can get at once 
+
+typedef struct URL {
+	string protocol = "HTTP/1.1";
+	string hostname;
+	string port = "80";
+	string path;
+	string fragment;
+	int invalid;
+} URL;
+
+//void print_vector(vector <string> v) {
+//	for (vector<string>::iterator iter = v.begin(); iter != v.end(); iter ++) {
+//		cout << *iter + string("hello") << endl;
+//	}
+//}
+
+string CleanString(const char* url_raw) {
+	// wget allows space in the input url, so we first skip the spaces
+	// in the urls
+	string s = "";
+	while(url_raw && *url_raw) {
+		if (*url_raw == ' ') url_raw ++;
+		else {
+			s += *url_raw;
+			url_raw ++;
+		}
+	}
+	return s;
+}
+
+bool IsValidProtocol(string *url_ptr) {
+    string url = *url_ptr;
+	for (int i=0; i < url.length() - 3; i++) {
+		if (!url.compare(i, 3, "://")) {
+			if (i != 4 || url.compare(0, 7, "http://")) {
+                return 0;
+            } else {
+                *url_ptr = (*url_ptr).substr(7);
+                cout << *url_ptr << endl;
+                break;
+            }
+		}
+	}
+	return 1;
+}
+
+URL* ParseURL(string url) {
+	URL* ret = new URL();
+
+	if (!IsValidProtocol(&url)) {
+        ret->invalid = 1;
+    }
+
+    int slash_pos = url.find('/');
+    int colon_pos = url.find(':');
+    if (slash_pos > url.length()) {
+        ret->hostname = url;
+        return ret;
+    }
+
+    if (url.find(':') < url.length()) {
+        int colon_pos = url.find(':');
+        ret->hostname = url.substr(0, colon_pos);
+        ret->port = url.substr(colon_pos + 1, slash_pos - colon_pos - 1);
+    } else {
+        ret->hostname = url.substr(0, slash_pos);
+    }
+    ret->path = url.substr(slash_pos);
+	return ret;
+}
+
 
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -33,6 +107,18 @@ void *get_in_addr(struct sockaddr *sa)
 
 int main(int argc, char *argv[])
 {
+	string clean_url = CleanString(argv[1]); // TODO: finish this later, this does not actually handle when the url has space in command line
+	URL* info = ParseURL(clean_url);
+	if (info->invalid) {
+		ofstream output;
+		output.open("output");
+		output << "NOCONNECTION";
+		output.close();
+		exit(1);
+	}
+
+	ofstream output; //create output file
+	output.open("output");
 	int sockfd, numbytes;  
 	char buf[MAXDATASIZE];
 	struct addrinfo hints, *servinfo, *p;
@@ -41,39 +127,48 @@ int main(int argc, char *argv[])
 
 	if (argc != 2) {
 	    fprintf(stderr,"usage: client hostname\n");
+		output.close();
 	    exit(1);
 	}
 
 	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;
+	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 
-	if ((rv = getaddrinfo(argv[1], PORT, &hints, &servinfo)) != 0) {
+	if ((rv = getaddrinfo(info->hostname.c_str(), (info->port).c_str(), &hints, &servinfo)) != 0) {
+		output.close();
+		output.open("output");
+		output << "NOCONNECTION";
+		output.close();
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		return 1;
 	}
 
 	// loop through all the results and connect to the first we can
-	cout << "Entering for loop" << endl;
 	for(p = servinfo; p != NULL; p = p->ai_next) {
+		// cout << "fuck" << endl;
 		if ((sockfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
 			perror("client: socket");
 			continue;
 		}
 
-		cout << "get socket addrinfo succeed" << endl;
+		// cout << sockfd << endl;
 
 		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
 			perror("client: connect");
 			continue;
 		}
-		cout << "connected" << endl;
+
 		break;
 	}
 
 	if (p == NULL) {
+		output.close();
+		output.open("output");
+		output << "NOCONNECTION";
+		output.close();
 		fprintf(stderr, "client: failed to connect\n");
 		return 2;
 	}
@@ -84,16 +179,51 @@ int main(int argc, char *argv[])
 
 	freeaddrinfo(servinfo); // all done with this structure
 
-	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	    exit(1);
+	// send the GET request here
+	string tmp = "GET " + info->path + " " + info->protocol + "\r\nHost: " + info->hostname + "\r\n\r\n";
+	// cout << tmp << endl;
+	char *msg = const_cast<char*>(tmp.c_str());
+	int len = strlen(msg);
+	if ((numbytes = send(sockfd, msg, len, 0)) == -1) {
+		output.close();
+		perror("send");
+		exit(1);
 	}
 
-	buf[numbytes] = '\0';
+	int http_response = 1;
+	while (1)
+	{
+		if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+			output.close();
+		    perror("recv");
+		    exit(1);
+		}
+		// cout << numbytes << endl;
 
-	printf("client: received '%s'\n",buf);
+		buf[numbytes] = '\0';
+		if (!strlen(buf)) break;
+
+		if (http_response && strstr(buf, "404")) {
+			//only when we find 404 code in the first line will we say filenotfound
+			output.close();
+			output.open("output");
+			output << "FILENOTFOUND";
+			break;
+		}
+		http_response = 0;
+
+		// printf("client: received '%s'\n",buf);
+		// write to the file named "output"
+		output << buf;
+		// break;
+	}
+	
 
 	close(sockfd);
+	
+	delete(info);
+
+	output.close();
 
 	return 0;
 }
