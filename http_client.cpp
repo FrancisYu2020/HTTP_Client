@@ -22,7 +22,7 @@ using namespace std;
 
 #define PORT "80" // the port client will be connecting to 
 
-#define MAXDATASIZE 120 // max number of bytes we can get at once 
+#define MAXDATASIZE 512 // max number of bytes we can get at once 
 
 typedef struct URL {
 	string protocol = "HTTP/1.1";
@@ -37,14 +37,6 @@ void print_vector(vector <string> v) {
 	for (vector<string>::iterator iter = v.begin(); iter != v.end(); iter ++) {
 		cout << *iter + string("hello") << endl;
 	}
-}
-
-int write_to_file(string filename, char* content){
-	ofstream output;
-	output.open(filename);
-	output << content;
-	output.close();
-	return 0;
 }
 
 string CleanString(const char* url_raw) {
@@ -125,10 +117,15 @@ int main(int argc, char *argv[])
 	// return 0;
 	// cout << int(inet_addr("127.0.0.1")) << endl;
 	if (info->invalid) {
-		write_to_file("output", "NOCONNECTION");
+		ofstream output;
+		output.open("output");
+		output << "NOCONNECTION";
+		output.close();
 		exit(1);
 	}
 
+	ofstream output; //create output file
+	output.open("output");
 	int sockfd, numbytes;  
 	char buf[MAXDATASIZE];
 	struct addrinfo hints, *servinfo, *p;
@@ -138,6 +135,7 @@ int main(int argc, char *argv[])
 
 	if (argc != 2) {
 	    fprintf(stderr,"usage: client hostname\n");
+		output.close();
 	    exit(1);
 	}
 
@@ -146,6 +144,7 @@ int main(int argc, char *argv[])
 	hints.ai_socktype = SOCK_STREAM;
 
 	if ((rv = getaddrinfo(info->hostname.c_str(), (info->port).c_str(), &hints, &servinfo)) != 0) {
+		output.close();
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		return 1;
 	}
@@ -171,6 +170,10 @@ int main(int argc, char *argv[])
 	}
 
 	if (p == NULL) {
+		output.close();
+		output.open("output");
+		output << "NOCONNECTION";
+		output.close();
 		fprintf(stderr, "client: failed to connect\n");
 		return 2;
 	}
@@ -187,25 +190,34 @@ int main(int argc, char *argv[])
 	char *msg = const_cast<char*>(tmp.c_str());
 	int len = strlen(msg);
 	if ((numbytes = send(sockfd, msg, len, 0)) == -1) {
+		output.close();
 		perror("send");
 		exit(1);
 	}
 
-	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	    exit(1);
+	while (1)
+	{
+		if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+			output.close();
+		    perror("recv");
+		    exit(1);
+		}
+		// cout << numbytes << endl;
+
+		buf[numbytes] = '\0';
+		if (!strlen(buf)) break;
+
+		// printf("client: received '%s'\n",buf);
+		// write to the file named "output"
+		output << buf;
 	}
-	// cout << numbytes << endl;
-
-	buf[numbytes] = '\0';
-
-	// printf("client: received '%s'\n",buf);
-	// write to the file named "output"
-	write_to_file("output", buf);
+	
 
 	close(sockfd);
 	
 	delete(info);
+
+	output.close();
 
 	return 0;
 }
