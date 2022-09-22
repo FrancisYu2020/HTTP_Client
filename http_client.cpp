@@ -15,29 +15,23 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include <bits/stdc++.h>
+#include <fstream>
+// #include "utils.hpp"
 
 using namespace std;
 
-#define PORT "3490" // the port client will be connecting to 
+#define PORT "80" // the port client will be connecting to 
 
-#define MAXDATASIZE 100 // max number of bytes we can get at once 
+#define MAXDATASIZE 120 // max number of bytes we can get at once 
 
 typedef struct URL {
+	string protocol = "HTTP/1.1";
 	string hostname;
-	string port = "8080";
+	string port = "80";
 	string path;
-	string fragment; 
+	string fragment;
+	int invalid;
 } URL;
-
-vector <string> tokenize(string str){
-	vector <string> tokens;
-	stringstream s(str);
-	string intermeidate;
-	while(getline(s, intermeidate, '/')) {
-		tokens.push_back(intermeidate);
-	}
-	return tokens;
-}
 
 void print_vector(vector <string> v) {
 	for (vector<string>::iterator iter = v.begin(); iter != v.end(); iter ++) {
@@ -45,25 +39,69 @@ void print_vector(vector <string> v) {
 	}
 }
 
-string get_path(vector<string> v) {
-	string s;
-	for (vector<string>::iterator iter = v.begin() + 1; iter != v.end(); iter ++) {
-		s += *iter;
-		if (iter != v.end() - 1) s += "/";
+int write_to_file(string filename, char* content){
+	ofstream output;
+	output.open(filename);
+	output << content;
+	output.close();
+	return 0;
+}
+
+string CleanString(const char* url_raw) {
+	// wget allows space in the input url, so we first skip the spaces
+	// in the urls
+	string s = "";
+	while(url_raw && *url_raw) {
+		if (*url_raw == ' ') url_raw ++;
+		else {
+			s += *url_raw;
+			url_raw ++;
+		}
 	}
 	return s;
 }
-URL* parse_url(const string url_raw) {
-	string url = url_raw; // max length of url could be 512
-	URL* ret = new URL();
-	if (!url.compare(0, 7, "http://")) {
-		url = url.substr(7);
+
+bool IsValidProtocol(string *url_ptr) {
+    string url = *url_ptr;
+	for (int i=0; i < url.length() - 3; i++) {
+		if (!url.compare(i, 3, "://")) {
+			if (i != 4 || url.compare(0, 7, "http://")) {
+                return 0;
+            } else {
+                *url_ptr = (*url_ptr).substr(7);
+                cout << *url_ptr << endl;
+                break;
+            }
+		}
 	}
-	vector <string> tokens = tokenize(url);
-	ret->hostname = tokens[0];
-	if (tokens.size() > 1) ret->path = get_path(tokens);
+	return 1;
+}
+
+URL* ParseURL(string url) {
+	URL* ret = new URL();
+
+	if (!IsValidProtocol(&url)) {
+        ret->invalid = 1;
+    }
+
+    int slash_pos = url.find('/');
+    int colon_pos = url.find(':');
+    if (slash_pos > url.length()) {
+        ret->hostname = url;
+        return ret;
+    }
+
+    if (url.find(':') < url.length()) {
+        int colon_pos = url.find(':');
+        ret->hostname = url.substr(0, colon_pos);
+        ret->port = url.substr(colon_pos + 1, slash_pos - colon_pos - 1);
+    } else {
+        ret->hostname = url.substr(0, slash_pos);
+    }
+    ret->path = url.substr(slash_pos);
 	return ret;
 }
+
 
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -77,15 +115,26 @@ void *get_in_addr(struct sockaddr *sa)
 
 int main(int argc, char *argv[])
 {
-	// string url = "http://fuck you ass hole/ fdasjfl/fdsaf";
-	URL* info = parse_url(argv[1]);
+	string clean_url = CleanString(argv[1]); // TODO: finish this later, this does not actually handle when the url has space in command line
+	URL* info = ParseURL(clean_url);
+	// cout << info->protocol << endl;
+	// cout << info->hostname << endl;
+	// cout << info->port << endl;
+	// cout << info->path << endl;
+	// cout << "Invalid " << (info->invalid) << endl;
+	// return 0;
 	// cout << int(inet_addr("127.0.0.1")) << endl;
+	if (info->invalid) {
+		write_to_file("output", "NOCONNECTION");
+		exit(1);
+	}
+
 	int sockfd, numbytes;  
 	char buf[MAXDATASIZE];
 	struct addrinfo hints, *servinfo, *p;
 	int rv;
 	char s[INET6_ADDRSTRLEN];
-	cout << int(p->ai_protocol) << endl;
+	// cout << int(p->ai_protocol) << endl;
 
 	if (argc != 2) {
 	    fprintf(stderr,"usage: client hostname\n");
@@ -96,7 +145,7 @@ int main(int argc, char *argv[])
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 
-	if ((rv = getaddrinfo(info->hostname.c_str(), PORT, &hints, &servinfo)) != 0) {
+	if ((rv = getaddrinfo(info->hostname.c_str(), (info->port).c_str(), &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		return 1;
 	}
@@ -110,7 +159,7 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		cout << sockfd << endl;
+		// cout << sockfd << endl;
 
 		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
@@ -118,7 +167,6 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		cout << "fuck2" << endl;
 		break;
 	}
 
@@ -133,14 +181,27 @@ int main(int argc, char *argv[])
 
 	freeaddrinfo(servinfo); // all done with this structure
 
+	// send the GET request here
+	string tmp = "GET " + info->path + " " + info->protocol + "\r\nHost: " + info->hostname + "\r\n\r\n";
+	// cout << tmp << endl;
+	char *msg = const_cast<char*>(tmp.c_str());
+	int len = strlen(msg);
+	if ((numbytes = send(sockfd, msg, len, 0)) == -1) {
+		perror("send");
+		exit(1);
+	}
+
 	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
 	    perror("recv");
 	    exit(1);
 	}
+	// cout << numbytes << endl;
 
 	buf[numbytes] = '\0';
 
-	printf("client: received '%s'\n",buf);
+	// printf("client: received '%s'\n",buf);
+	// write to the file named "output"
+	write_to_file("output", buf);
 
 	close(sockfd);
 	

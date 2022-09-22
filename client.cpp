@@ -11,12 +11,13 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <iostream>
 
 #include <arpa/inet.h>
 
 using namespace std;
 
-#define PORT "3490" // the port client will be connecting to 
+#define PORT "80" // the port client will be connecting to 
 
 #define MAXDATASIZE 100 // max number of bytes we can get at once 
 
@@ -53,6 +54,7 @@ int main(int argc, char *argv[])
 	}
 
 	// loop through all the results and connect to the first we can
+	cout << "Entering for loop" << endl;
 	for(p = servinfo; p != NULL; p = p->ai_next) {
 		if ((sockfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
@@ -60,12 +62,14 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
+		cout << "get socket addrinfo succeed" << endl;
+
 		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
 			perror("client: connect");
 			continue;
 		}
-
+		cout << "connected" << endl;
 		break;
 	}
 
