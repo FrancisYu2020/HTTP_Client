@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
 	}
 
 	ofstream output; //create output file
-	output.open("output", ios::out | ios::app | ios::binary);
+	output.open("output", ios::out | ios::binary);
 	int sockfd, numbytes;  
 	char buf[MAXDATASIZE];
 	struct addrinfo hints, *servinfo, *p;
@@ -191,6 +191,8 @@ int main(int argc, char *argv[])
 	}
 
 	int http_response = 1;
+	int first_line = 1;
+	int total_received = 0;
 	while (1)
 	{
 		if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
@@ -201,26 +203,31 @@ int main(int argc, char *argv[])
 		// cout << numbytes << endl;
 
 		buf[numbytes] = '\0';
+		total_received += numbytes;
 		if (!strlen(buf)) break;
 
 		if (http_response) {
-			if (strstr(buf, "404")) {
+			// this code snippet handles when the buffer is still reading the header
+			// cout << buf << endl;
+			if (first_line && strstr(buf, "404")) {
 				//only when we find 404 code in the first line will we say filenotfound
 				output.close();
 				output.open("output");
 				output << "FILENOTFOUND";
 				break;
 			}
+			first_line = 0;
 			if (char *body = strstr(buf, "\r\n\r\n")) {
 				http_response = 0;
-				output << body + 4;
+				// cout << strlen(body + 4) << " bytes left after ending signal" << endl;
+				output.write(body + 4, strlen(body + 4));
 			}
 			continue;
 		}
 
 		// printf("client: received '%s'\n",buf);
 		// write to the file named "output"
-		output << buf;
+		output.write(buf, numbytes);
 		// break;
 	}
 	
