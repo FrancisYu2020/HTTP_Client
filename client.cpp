@@ -210,6 +210,7 @@ int main(int argc, char *argv[])
 				http_response = 0;
                                 // cout << body + 4 << "   " << strlen(body + 4) << "  " << numbytes << endl;
 				output.write(body + 4, strlen(body + 4));
+				memset(buf, 0, sizeof(buf));
 			}
 			continue;
 		}
@@ -217,6 +218,8 @@ int main(int argc, char *argv[])
 		// printf("client: received '%s'\n",buf);
 		// write to the file named "output"
 		output.write(buf, numbytes);
+		memset(buf, 0, sizeof(buf));
+		cout << sizeof(buf) << endl;
 		// break;
 	}
 	
