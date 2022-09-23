@@ -14,13 +14,9 @@
 #include <string>
 #include <iostream>
 #include <arpa/inet.h>
-//#include <bits/stdc++.h>
 #include <fstream>
-// #include "utils.hpp"
 
 using namespace std;
-
-// #define PORT "80" // the port client will be connecting to 
 
 #define MAXDATASIZE 16 // max number of bytes we can get at once 
 
@@ -29,15 +25,8 @@ typedef struct URL {
 	string hostname;
 	string port = "80";
 	string path;
-	string fragment;
 	int invalid;
 } URL;
-
-//void print_vector(vector <string> v) {
-//	for (vector<string>::iterator iter = v.begin(); iter != v.end(); iter ++) {
-//		cout << *iter + string("hello") << endl;
-//	}
-//}
 
 string CleanString(const char* url_raw) {
 	// wget allows space in the input url, so we first skip the spaces
@@ -112,7 +101,7 @@ int main(int argc, char *argv[])
 	if (info->invalid) {
 		ofstream output;
 		output.open("output");
-		output << "NOCONNECTION";
+		output << "INVALIDPROTOCOL";
 		output.close();
 		exit(1);
 	}
