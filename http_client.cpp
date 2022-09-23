@@ -109,13 +109,6 @@ int main(int argc, char *argv[])
 {
 	string clean_url = CleanString(argv[1]); // TODO: finish this later, this does not actually handle when the url has space in command line
 	URL* info = ParseURL(clean_url);
-	// cout << info->protocol << endl;
-	// cout << info->hostname << endl;
-	// cout << info->port << endl;
-	// cout << info->path << endl;
-	// cout << "Invalid " << (info->invalid) << endl;
-	// return 0;
-	// cout << int(inet_addr("127.0.0.1")) << endl;
 	if (info->invalid) {
 		ofstream output;
 		output.open("output");
@@ -131,7 +124,6 @@ int main(int argc, char *argv[])
 	struct addrinfo hints, *servinfo, *p;
 	int rv;
 	char s[INET6_ADDRSTRLEN];
-	// cout << int(p->ai_protocol) << endl;
 
 	if (argc != 2) {
 	    fprintf(stderr,"usage: client hostname\n");
@@ -144,6 +136,9 @@ int main(int argc, char *argv[])
 	hints.ai_socktype = SOCK_STREAM;
 
 	if ((rv = getaddrinfo(info->hostname.c_str(), (info->port).c_str(), &hints, &servinfo)) != 0) {
+		output.close();
+		output.open("output");
+		output << "NOCONNECTION";
 		output.close();
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		return 1;

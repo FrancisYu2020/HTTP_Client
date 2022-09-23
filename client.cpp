@@ -135,7 +135,6 @@ int main(int argc, char *argv[])
 
 	// loop through all the results and connect to the first we can
 	for(p = servinfo; p != NULL; p = p->ai_next) {
-		// cout << "fuck" << endl;
 		if ((sockfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
 			perror("client: socket");
