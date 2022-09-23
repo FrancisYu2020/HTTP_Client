@@ -18,7 +18,7 @@
 
 using namespace std;
 
-#define MAXDATASIZE 16 // max number of bytes we can get at once 
+#define MAXDATASIZE 512 // max number of bytes we can get at once 
 
 typedef struct URL {
 	string protocol = "HTTP/1.1";
@@ -179,6 +179,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+        // cout << numbytes << tmp.length() << endl;
 	int http_response = 1;
 	int first_line = 1;
 	int total_received = 0;
@@ -208,7 +209,7 @@ int main(int argc, char *argv[])
 			first_line = 0;
 			if (char *body = strstr(buf, "\r\n\r\n")) {
 				http_response = 0;
-				// cout << strlen(body + 4) << " bytes left after ending signal" << endl;
+                                // cout << body + 4 << "   " << strlen(body + 4) << "  " << numbytes << endl;
 				output.write(body + 4, strlen(body + 4));
 			}
 			continue;
@@ -220,7 +221,7 @@ int main(int argc, char *argv[])
 		// break;
 	}
 	
-
+        cout << "total received bytes = " << total_received << endl;
 	close(sockfd);
 	
 	delete(info);
