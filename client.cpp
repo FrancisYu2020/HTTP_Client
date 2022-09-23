@@ -83,6 +83,15 @@ URL* ParseURL(string url) {
 	return ret;
 }
 
+void HandleError(FILE* fp, const char* msg) {
+	fclose(fp);
+	fp = fopen("output", "wb");
+	int ret = fwrite(msg, 1, strlen(msg), fp);
+	if (ret < strlen(msg)) {
+		perror("error when write message error message");
+	}
+	fclose(fp);
+}
 
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -106,8 +115,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	ofstream output; //create output file
-	output.open("output", ios::out | ios::binary);
+	// ofstream output; //create output file
+	FILE* fp;
+	fp = fopen("output", "wb");
 	int sockfd, numbytes;  
 	char buf[MAXDATASIZE];
 	struct addrinfo hints, *servinfo, *p;
@@ -116,7 +126,7 @@ int main(int argc, char *argv[])
 
 	if (argc != 2) {
 	    fprintf(stderr,"usage: client hostname\n");
-		output.close();
+		fclose(fp);
 	    exit(1);
 	}
 
@@ -125,10 +135,7 @@ int main(int argc, char *argv[])
 	hints.ai_socktype = SOCK_STREAM;
 
 	if ((rv = getaddrinfo(info->hostname.c_str(), (info->port).c_str(), &hints, &servinfo)) != 0) {
-		output.close();
-		output.open("output");
-		output << "NOCONNECTION";
-		output.close();
+		HandleError(fp, "NOCONNECTION");
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		return 1;
 	}
@@ -153,10 +160,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (p == NULL) {
-		output.close();
-		output.open("output");
-		output << "NOCONNECTION";
-		output.close();
+		HandleError(fp, "NOCONNECTION");
 		fprintf(stderr, "client: failed to connect\n");
 		return 2;
 	}
@@ -173,7 +177,7 @@ int main(int argc, char *argv[])
 	char *msg = const_cast<char*>(tmp.c_str());
 	int len = strlen(msg);
 	if ((numbytes = send(sockfd, msg, len, 0)) == -1) {
-		output.close();
+		fclose(fp);
 		perror("send");
 		exit(1);
 	}
@@ -185,7 +189,8 @@ int main(int argc, char *argv[])
 	while (1)
 	{
 		if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
-			output.close();
+			// output.close();
+			fclose(fp);
 		    perror("recv");
 		    exit(1);
 		}
@@ -200,23 +205,33 @@ int main(int argc, char *argv[])
 			// cout << buf << endl;
 			if (first_line && strstr(buf, "404")) {
 				//only when we find 404 code in the first line will we say filenotfound
-				output.close();
-				output.open("output");
-				output << "FILENOTFOUND";
+				fclose(fp);
+				fp = fopen("output", "wb");
+				fwrite("FILENOTFOUND", 1, strlen("FILENOTFOUND"), fp);
+				// output.close();
+				// output.open("output");
+				// output << "FILENOTFOUND";
 				break;
 			}
 			first_line = 0;
 			if (char *body = strstr(buf, "\r\n\r\n")) {
+				int body_pos;
+				char *tmp = buf;
+				while (tmp != (body + 4)) {
+					body_pos ++;
+					tmp ++;
+				}
 				http_response = 0;
-                                // cout << body + 4 << "   " << strlen(body + 4) << "  " << numbytes << endl;
-				output.write(body + 4, strlen(body + 4));
+				fwrite(buf, 1, numbytes - body_pos, fp);
+				// output.write(body + 4, strlen(body + 4));
 			}
 			continue;
 		}
 
 		// printf("client: received '%s'\n",buf);
 		// write to the file named "output"
-		output.write(buf, numbytes);
+		// output.write(buf, numbytes);
+		fwrite(buf, 1, numbytes, fp);
 		// break;
 	}
 	
