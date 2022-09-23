@@ -18,7 +18,7 @@
 
 using namespace std;
 
-#define MAXDATASIZE 512 // max number of bytes we can get at once 
+#define MAXDATASIZE 8192 // max number of bytes we can get at once 
 
 typedef struct URL {
 	string protocol = "HTTP/1.1";
@@ -180,8 +180,43 @@ int main(int argc, char *argv[])
 
         // cout << numbytes << tmp.length() << endl;
 	int http_response = 1;
-	int first_line = 1;
+	// int first_line = 1;
 	int total_received = 0;
+	if (http_response) {
+		// this code snippet handles when the buffer is still reading the header
+		// cout << buf << endl;
+		if (strstr(buf, "404")) {
+			//only when we find 404 code in the first line will we say filenotfound
+			output.close();
+			output.open("output");
+			output << "FILENOTFOUND";
+			output.close();
+			close(sockfd);
+			delete(info);
+			return 0;
+			// break;
+		}
+		char* length = strstr(buf, "Content-Length: ");
+		length += strlen("Content-Length: ");
+		char* length_end = strstr(length, "\n");
+		*length_end = '\0';
+		int expected_number = atoi(length);
+		*length_end = '\n';
+
+		// first_line = 0;
+		if (char *body = strstr(buf, "\r\n\r\n")) {
+			http_response = 0;
+            // cout << body + 4 << "   " << strlen(body + 4) << "  " << numbytes << endl;
+			output.write(body + 4, strlen(body + 4));
+		} else {
+			output.close();
+			delete(info);
+			close(sockfd);
+			perror("No body found!");
+			exit(1);
+		}
+		// continue;
+	}
 	while (1)
 	{
 		if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
@@ -197,25 +232,6 @@ int main(int argc, char *argv[])
 			numbytes =recv(sockfd, buf, MAXDATASIZE-1, 0);
 			cout << "Next we read: " << numbytes << " bytes" << endl;
 			break;
-		}
-
-		if (http_response) {
-			// this code snippet handles when the buffer is still reading the header
-			// cout << buf << endl;
-			if (first_line && strstr(buf, "404")) {
-				//only when we find 404 code in the first line will we say filenotfound
-				output.close();
-				output.open("output");
-				output << "FILENOTFOUND";
-				break;
-			}
-			first_line = 0;
-			if (char *body = strstr(buf, "\r\n\r\n")) {
-				http_response = 0;
-                                // cout << body + 4 << "   " << strlen(body + 4) << "  " << numbytes << endl;
-				output.write(body + 4, strlen(body + 4));
-			}
-			continue;
 		}
 
 		// printf("client: received '%s'\n",buf);
