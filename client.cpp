@@ -193,7 +193,11 @@ int main(int argc, char *argv[])
 
 		buf[numbytes] = '\0';
 		total_received += numbytes;
-		if (!strlen(buf)) break;
+		if (!strlen(buf)) {
+			numbytes =recv(sockfd, buf, MAXDATASIZE-1, 0);
+			cout << "Next we read: " << numbytes << " bytes" << endl;
+			break;
+		}
 
 		if (http_response) {
 			// this code snippet handles when the buffer is still reading the header
@@ -220,7 +224,7 @@ int main(int argc, char *argv[])
 		// break;
 	}
 	
-        cout << "total received bytes = " << total_received << endl;
+    cout << "total received bytes = " << total_received << endl;
 	close(sockfd);
 	
 	delete(info);
