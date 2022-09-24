@@ -18,7 +18,7 @@
 
 using namespace std;
 
-#define MAXDATASIZE 8192 // max number of bytes we can get at once 
+#define MAXDATASIZE 1030 // max number of bytes we can get at once 
 
 typedef struct URL {
 	string protocol = "HTTP/1.1";
@@ -50,7 +50,7 @@ bool IsValidProtocol(string *url_ptr) {
                 return 0;
             } else {
                 *url_ptr = (*url_ptr).substr(7);
-                cout << *url_ptr << endl;
+                // cout << *url_ptr << endl;
                 break;
             }
 		}
@@ -141,8 +141,6 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		// cout << sockfd << endl;
-
 		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
 			perror("client: connect");
@@ -169,7 +167,6 @@ int main(int argc, char *argv[])
 
 	// send the GET request here
 	string tmp = "GET " + info->path + " " + info->protocol + "\r\nHost: " + info->hostname + "\r\n\r\n";
-	// cout << tmp << endl;
 	char *msg = const_cast<char*>(tmp.c_str());
 	int len = strlen(msg);
 	if ((numbytes = send(sockfd, msg, len, 0)) == -1) {
@@ -178,10 +175,16 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-        // cout << numbytes << tmp.length() << endl;
 	int http_response = 1;
-	// int first_line = 1;
 	int total_received = 0;
+	int expected_number;
+	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+		output.close();
+	    perror("recv");
+	    exit(1);
+	}
+	buf[numbytes] = '\0';
+	cout << buf << endl;
 	if (http_response) {
 		// this code snippet handles when the buffer is still reading the header
 		// cout << buf << endl;
@@ -200,14 +203,21 @@ int main(int argc, char *argv[])
 		length += strlen("Content-Length: ");
 		char* length_end = strstr(length, "\n");
 		*length_end = '\0';
-		int expected_number = atoi(length);
+		expected_number = atoi(length);
 		*length_end = '\n';
 
 		// first_line = 0;
 		if (char *body = strstr(buf, "\r\n\r\n")) {
 			http_response = 0;
             // cout << body + 4 << "   " << strlen(body + 4) << "  " << numbytes << endl;
-			output.write(body + 4, strlen(body + 4));
+			int counter = 0;
+			char* t = buf + numbytes;
+			while (t != (body + 4)) {
+				counter ++;
+				t --;
+			}
+			output.write(body + 4, counter);
+			total_received += counter;
 		} else {
 			output.close();
 			delete(info);
@@ -217,7 +227,8 @@ int main(int argc, char *argv[])
 		}
 		// continue;
 	}
-	while (1)
+	cout << total_received << endl;
+	while (total_received < expected_number)
 	{
 		if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
 			output.close();
@@ -227,16 +238,13 @@ int main(int argc, char *argv[])
 		// cout << numbytes << endl;
 
 		buf[numbytes] = '\0';
+		int old_total = total_received;
 		total_received += numbytes;
-		if (!strlen(buf)) {
-			numbytes =recv(sockfd, buf, MAXDATASIZE-1, 0);
-			cout << "Next we read: " << numbytes << " bytes" << endl;
-			break;
+		if (total_received > expected_number) {
+			cout << total_received << " vs. " << expected_number << endl;
+			output.write(buf, expected_number - old_total);
 		}
-
-		// printf("client: received '%s'\n",buf);
-		// write to the file named "output"
-		output.write(buf, numbytes);
+		else output.write(buf, numbytes);
 		// break;
 	}
 	
