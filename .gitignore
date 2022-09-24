@@ -12,3 +12,8 @@ utils.hpp
 output
 output.jpg
 hippo5.jpg
+*.mp4
+*.txt
+testdir/
+*.jpg
+*.pdf
